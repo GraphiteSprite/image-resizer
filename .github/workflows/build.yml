@@ -24,84 +24,45 @@ jobs:
         pip install pyinstaller
         pip install pillow
     
-    - name: Debug - List icon file
+    - name: Debug environment
       run: |
-        echo "Checking for icon file:"
-        if (Test-Path "resize_image_app_icon.ico") {
-            echo "Icon file exists"
-        } else {
-            echo "Icon file NOT FOUND"
-            dir
-        }
+        echo "Current directory: $PWD"
+        echo "Directory contents:"
+        dir
+        echo "Python version:"
+        python --version
     
     - name: Build with PyInstaller
       run: |
-        echo "Running PyInstaller..."
-        pyinstaller --onefile --windowed --icon=resize_image_app_icon.ico --name="Image Resizer" image_resizer.py
-        echo "PyInstaller completed"
+        pyinstaller --onefile --windowed --icon=resize_image_app_icon.ico --name=ImageResizer image_resizer.py
+        dir dist
     
-    - name: Create shortcut script
+    - name: Create support files
       run: |
-        echo "Creating shortcut script..."
-        @"
-        `$WshShell = New-Object -ComObject WScript.Shell
-        `$Shortcut = `$WshShell.CreateShortcut("`$env:USERPROFILE\Desktop\Image Resizer.lnk")
-        `$Shortcut.TargetPath = "`$PSScriptRoot\Image Resizer.exe"
-        `$Shortcut.IconLocation = "`$PSScriptRoot\Image Resizer.exe,0"
-        `$Shortcut.Description = "Batch Image Resizer Application"
-        `$Shortcut.WorkingDirectory = "`$PSScriptRoot"
-        `$Shortcut.Save()
-        Write-Host "Shortcut created on your desktop!"
-        "@ | Out-File -FilePath ".\dist\Create_Shortcut.ps1" -Encoding utf8
-    
-    - name: Create README with instructions
-      run: |
-        echo "Creating README..."
+        # Create README
         @"
         # Image Resizer
 
-        ## Installation Instructions
-
-        1. Extract all files from the zip to a folder on your computer
-        2. To create a desktop shortcut, right-click on "Create_Shortcut.ps1" and select "Run with PowerShell"
-        3. Double-click the "Image Resizer.exe" file to run the application
-
-        ## Using the Application
-
-        - Select an input folder containing images
-        - Select an output folder for the resized images
-        - Choose whether to resize by pixel dimensions or file size
-        - Click "Resize Images" to process all images
-
-        ## Troubleshooting
-
-        If the application doesn't start:
-        - Make sure you have extracted all files from the zip
-        - Try running the application as administrator
+        A simple tool to batch resize images by dimensions or file size.
+        
+        ## Usage
+        Double-click ImageResizer.exe to start the application.
         "@ | Out-File -FilePath ".\dist\README.txt" -Encoding utf8
-    
-    - name: Debug - List files before packaging
-      run: |
-        echo "Current directory:"
-        dir
-        echo "dist directory contents:"
+        
         dir dist
-
-    - name: Package files
+    
+    - name: Create test artifact
       run: |
-        echo "Creating zip package..."
-        Compress-Archive -Path "dist\*" -DestinationPath "ImageResizer_Setup.zip" -Force
-        echo "Checking if ZIP was created:"
-        dir *.zip
+        echo "This is a test file" > test.txt
+    
+    - name: Upload test artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-file
+        path: test.txt
     
     - name: Upload executable
       uses: actions/upload-artifact@v3
       with:
-        name: Image-Resizer-Executable
-        path: dist/"Image Resizer.exe"
-    
-    - name: Upload complete package
-      uses: actions/upload-artifact@v3
-      with:
-        name: ImageResizer_Package
-        path: ImageResizer_Setup.zip
+        name: ImageResizer
+        path: dist/ImageResizer.exe
