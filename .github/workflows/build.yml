@@ -12,20 +12,83 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+    
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
         python-version: '3.10'
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller
-        pip install -r requirements.txt
+        pip install pillow
+    
+    - name: Create icon file
+      run: |
+        # PowerShell script to create a simple icon if none exists
+        if (-not (Test-Path "app_icon.ico")) {
+          # Download a generic icon or use a placeholder
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets/Photo/SVG/ic_fluent_photo_24_regular.svg" -OutFile "temp_icon.svg"
+          # Convert SVG to ICO using ImageMagick (pre-installed on GitHub Actions)
+          magick convert -background transparent "temp_icon.svg" -define icon:auto-resize=64,48,32,16 "app_icon.ico"
+        }
+    
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --windowed image_resizer.py
-    - name: Upload artifact
+        pyinstaller --onefile --windowed --icon=app_icon.ico --name="Image Resizer" image_resizer.py
+    
+    - name: Create shortcut script
+      run: |
+        # Create a PowerShell script that the user can run to create a shortcut
+        @"
+        `$WshShell = New-Object -ComObject WScript.Shell
+        `$Shortcut = `$WshShell.CreateShortcut("`$env:USERPROFILE\Desktop\Image Resizer.lnk")
+        `$Shortcut.TargetPath = "`$PSScriptRoot\Image Resizer.exe"
+        `$Shortcut.IconLocation = "`$PSScriptRoot\Image Resizer.exe,0"
+        `$Shortcut.Description = "Batch Image Resizer Application"
+        `$Shortcut.WorkingDirectory = "`$PSScriptRoot"
+        `$Shortcut.Save()
+        Write-Host "Shortcut created on your desktop!"
+        "@ | Out-File -FilePath ".\dist\Create_Shortcut.ps1" -Encoding utf8
+    
+    - name: Create README with instructions
+      run: |
+        @"
+        # Image Resizer
+
+        ## Installation Instructions
+
+        1. Extract all files from the zip to a folder on your computer
+        2. To create a desktop shortcut, right-click on "Create_Shortcut.ps1" and select "Run with PowerShell"
+        3. Double-click the "Image Resizer.exe" file to run the application
+
+        ## Using the Application
+
+        - Select an input folder containing images
+        - Select an output folder for the resized images
+        - Choose whether to resize by pixel dimensions or file size
+        - Click "Resize Images" to process all images
+
+        ## Troubleshooting
+
+        If the application doesn't start:
+        - Make sure you have extracted all files from the zip
+        - Try running the application as administrator
+        "@ | Out-File -FilePath ".\dist\README.txt" -Encoding utf8
+    
+    - name: Package files
+      run: |
+        Compress-Archive -Path ".\dist\*" -DestinationPath ".\ImageResizer_Setup.zip" -Force
+    
+    - name: Upload executable
       uses: actions/upload-artifact@v3
       with:
-        name: image_resizer
-        path: dist/image_resizer.exe
+        name: Image Resizer
+        path: dist/Image Resizer.exe
+    
+    - name: Upload complete package
+      uses: actions/upload-artifact@v3
+      with:
+        name: ImageResizer_Package
+        path: ImageResizer_Setup.zip
