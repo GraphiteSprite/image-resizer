@@ -9,60 +9,30 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4  # Updated to latest version
+
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller
-        pip install pillow
-    
-    - name: Debug environment
-      run: |
-        echo "Current directory: $PWD"
-        echo "Directory contents:"
-        dir
-        echo "Python version:"
-        python --version
-    
+        pip install pyinstaller pillow
+
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --icon=resize_image_app_icon.ico --name=ImageResizer image_resizer.py
-        dir dist
-    
-    - name: Create support files
-      run: |
-        # Create README
-        @"
-        # Image Resizer
+        pyinstaller --onefile --windowed --icon=resize_image_app_icon.ico --name="Image Resizer" image_resizer.py
 
-        A simple tool to batch resize images by dimensions or file size.
-        
-        ## Usage
-        Double-click ImageResizer.exe to start the application.
-        "@ | Out-File -FilePath ".\dist\README.txt" -Encoding utf8
-        
-        dir dist
-    
-    - name: Create test artifact
+    - name: Package files
       run: |
-        echo "This is a test file" > test.txt
-    
-    - name: Upload test artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-file
-        path: test.txt
-    
+        Compress-Archive -Path dist\* -DestinationPath ImageResizer_Setup.zip -Force
+
     - name: Upload executable
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Updated version
       with:
-        name: ImageResizer
-        path: dist/ImageResizer.exe
+        name: Image-Resizer-Executable
+        path: dist/*
