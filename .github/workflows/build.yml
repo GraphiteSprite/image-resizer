@@ -28,6 +28,13 @@ jobs:
       run: |
         pyinstaller --onefile --windowed --icon=resize_image_app_icon.ico --name="Image Resizer" image_resizer.py
     
+    - name: Debug - List files
+      run: |
+        echo "Current directory:"
+        dir
+        echo "dist directory contents:"
+        dir dist
+    
     - name: Create shortcut script
       run: |
         # Create a PowerShell script that the user can run to create a shortcut
@@ -67,18 +74,25 @@ jobs:
         - Try running the application as administrator
         "@ | Out-File -FilePath ".\dist\README.txt" -Encoding utf8
     
+    - name: Debug - Check output files
+      run: |
+        echo "dist directory contents after creating files:"
+        dir dist
+    
     - name: Package files
       run: |
         Compress-Archive -Path ".\dist\*" -DestinationPath ".\ImageResizer_Setup.zip" -Force
+        echo "Checking if ZIP was created:"
+        dir *.zip
     
     - name: Upload executable
       uses: actions/upload-artifact@v3
       with:
         name: Image Resizer
-        path: dist/Image Resizer.exe
+        path: ./dist/Image\ Resizer.exe
     
     - name: Upload complete package
       uses: actions/upload-artifact@v3
       with:
         name: ImageResizer_Package
-        path: ImageResizer_Setup.zip
+        path: ./ImageResizer_Setup.zip
