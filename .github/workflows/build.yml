@@ -24,19 +24,9 @@ jobs:
         pip install pyinstaller
         pip install pillow
     
-    - name: Create icon file
-      run: |
-        # PowerShell script to create a simple icon if none exists
-        if (-not (Test-Path "app_icon.ico")) {
-          # Download a generic icon or use a placeholder
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets/Photo/SVG/ic_fluent_photo_24_regular.svg" -OutFile "temp_icon.svg"
-          # Convert SVG to ICO using ImageMagick (pre-installed on GitHub Actions)
-          magick convert -background transparent "temp_icon.svg" -define icon:auto-resize=64,48,32,16 "app_icon.ico"
-        }
-    
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --icon=app_icon.ico --name="Image Resizer" image_resizer.py
+        pyinstaller --onefile --windowed --icon=resize_image_app_icon.ico --name="Image Resizer" image_resizer.py
     
     - name: Create shortcut script
       run: |
