@@ -30,8 +30,8 @@ jobs:
 
     - name: Copy Icon to AppDir
       run: |
+        # Only copy to the apps directory, we'll create symlink later
         cp image-resizer-icon.png AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer-icon.png
-        cp image-resizer-icon.png AppDir/image-resizer-icon.png  # Copy to AppDir root as well
 
     - name: Create desktop file
       run: |
@@ -64,9 +64,9 @@ jobs:
         EOF
         chmod +x AppDir/AppRun
 
-        # Create symlinks
-        ln -s usr/share/applications/image-resizer.desktop AppDir/image-resizer.desktop
-        ln -s usr/share/icons/hicolor/128x128/apps/image-resizer-icon.png AppDir/image-resizer-icon.png
+        # Create symlinks (removed duplicate icon copy)
+        ln -sf usr/share/applications/image-resizer.desktop AppDir/image-resizer.desktop
+        ln -sf usr/share/icons/hicolor/128x128/apps/image-resizer-icon.png AppDir/image-resizer-icon.png
 
     - name: Download AppImageTool
       run: |
