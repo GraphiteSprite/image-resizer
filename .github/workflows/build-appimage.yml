@@ -85,8 +85,8 @@ jobs:
     - name: Build AppImage
       run: |
         ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
-        ls -lh *.AppImage  # Log the output to check the filename
-        mv Image_Resizer-x86_64.AppImage ImageResizer.AppImage  # Adjust command if necessary
+        ls -l *.AppImage # Debugging step to list the created AppImage file
+        mv *.AppImage ImageResizer.AppImage
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
