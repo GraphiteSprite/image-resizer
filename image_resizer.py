@@ -7,82 +7,106 @@ from PIL import Image, ImageTk
 import io
 
 
-def resize_image(input_path, output_path, min_size=None, target_size_mb=None):
+def resize_image(input_path, output_path, scaled_size=None, target_size_mb=None):
     """Resize an image while maintaining aspect ratio. Optionally compress to a target file size."""
-    if min_size is None and target_size_mb is not None:
-        # Calculate the scaling factor based on the target size in MB
-        # Fix: Convert target_size_mb directly without multiplication to address the factor of 10 issue
-        target_size_bytes = target_size_mb * 1024 * 1024  # This is correct as is
-        img = Image.open(input_path)
-        width, height = img.size
-        current_bytes = width * height * 3  # Approximate size in bytes (RGB)
-        
-        # Calculate scaling factor (square root because we're scaling in 2 dimensions)
-        scale_factor = (target_size_bytes / current_bytes) ** 0.5
-        
-        # Use this to determine minimum size while maintaining aspect ratio
-        min_size = min(width, height) * scale_factor
-    elif min_size is None:
-        raise ValueError("Both min_size and target_size_mb cannot be None")
+    if target_size_mb is not None:
+        # Check current file size
+        current_size_mb = os.path.getsize(input_path) / (1024 * 1024)
+        if current_size_mb <= target_size_mb:
+            # If file is already smaller than target, copy it directly
+            shutil.copy2(input_path, output_path)
+            print(f"Skipped resizing: file already under target size ({current_size_mb:.2f}MB)")
+            return None
 
-    # Ensure that min_size is a valid number
-    if not isinstance(min_size, (int, float)):
-        raise ValueError(f"Invalid min_size value: {min_size}")
+        image = Image.open(input_path)
+        format = image.format
+        orig_width, orig_height = image.size
 
-    image = Image.open(input_path)
-    format = image.format  # Preserve original format
+        # Binary search for the optimal scaling factor
+        left = 0.0  # Minimum scale (0%)
+        right = 1.0  # Maximum scale (100%)
+        best_scale = None
+        best_size_mb = 0
+        attempts = 0
+        max_attempts = 10  # Limit the number of attempts to find optimal size
 
-    # Scale image based on shortest side
-    width, height = image.size
-    scale_factor = min_size / min(width, height)
-    new_width = int(width * scale_factor)
-    new_height = int(height * scale_factor)
-
-    # Ensure that the new width and height are at least 1 pixel
-    new_width = max(1, new_width)
-    new_height = max(1, new_height)
-
-    print(f"min_size: {min_size}, target_size_mb: {target_size_mb}")
-    print(f"Resizing image to {new_width}x{new_height} pixels")
-
-    resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-    # Adjust compression if a file size limit is set
-    if target_size_mb:
-        quality = 95  # Start with high quality
-        temp_output = io.BytesIO()
-
-        while quality > 10:
-            temp_output.seek(0)
-            temp_output.truncate(0)  # Clear previous data
+        while attempts < max_attempts and (best_scale is None or right - left > 0.01):
+            scale = (left + right) / 2
+            new_width = int(orig_width * scale)
+            new_height = int(orig_height * scale)
             
-            # Save with appropriate format-specific parameters
+            # Ensure minimum dimensions of 1 pixel
+            new_width = max(1, new_width)
+            new_height = max(1, new_height)
+            
+            # Try this size
+            resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            temp_output = io.BytesIO()
+            
             if format == 'JPEG':
-                resized_image.save(temp_output, format=format, quality=quality)
+                resized.save(temp_output, format=format, quality=95)
             elif format == 'PNG':
-                resized_image.save(temp_output, format=format, optimize=True)
+                resized.save(temp_output, format=format, optimize=True)
             elif format == 'WEBP':
-                resized_image.save(temp_output, format=format, quality=quality)
-            elif format == 'HEIF' or format == 'HEIC':
-                resized_image.save(temp_output, format=format, quality=quality)
+                resized.save(temp_output, format=format, quality=95)
             else:
-                # Default save method for other formats
-                resized_image.save(temp_output, format=format)
-                
-            file_size = len(temp_output.getvalue()) / (1024 * 1024)  # Convert to MB
-            print(f"Quality: {quality}, Size: {file_size:.2f} MB, Target: {target_size_mb:.2f} MB")
+                resized.save(temp_output, format=format)
+            
+            size_mb = len(temp_output.getvalue()) / (1024 * 1024)
+            
+            if size_mb <= target_size_mb:
+                # This size works, try a larger scale
+                left = scale
+                if size_mb > best_size_mb:
+                    best_scale = scale
+                    best_size_mb = size_mb
+            else:
+                # Too big, try a smaller scale
+                right = scale
+            
+            attempts += 1
+            print(f"Attempt {attempts}: Scale={scale:.2f}, Size={size_mb:.2f}MB")
 
-            if file_size <= target_size_mb:
-                break
-            quality -= 5  # Reduce quality if the file is too large
+        if best_scale is None:
+            raise ValueError("Could not find suitable size within constraints")
 
-        temp_output.seek(0)
-        with open(output_path, "wb") as f:
-            f.write(temp_output.getvalue())
+        # Use the best scale found
+        final_width = int(orig_width * best_scale)
+        final_height = int(orig_height * best_scale)
+        final_image = image.resize((final_width, final_height), Image.Resampling.LANCZOS)
+        
+        # Save with the best parameters found
+        if format == 'JPEG':
+            final_image.save(output_path, format=format, quality=95)
+        elif format == 'PNG':
+            final_image.save(output_path, format=format, optimize=True)
+        elif format == 'WEBP':
+            final_image.save(output_path, format=format, quality=95)
+        else:
+            final_image.save(output_path, format=format)
+        
+        print(f"Final size: {os.path.getsize(output_path) / (1024 * 1024):.2f}MB")
+        return final_image
+
     else:
+        # Handle pixel-based resizing as before
+        if not isinstance(scaled_size, (int, float)):
+            raise ValueError(f"Invalid scaled_size value: {scaled_size}")
+            
+        image = Image.open(input_path)
+        format = image.format
+        width, height = image.size
+        
+        scale_factor = scaled_size / min(width, height)
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+        
+        new_width = max(1, new_width)
+        new_height = max(1, new_height)
+        
+        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         resized_image.save(output_path, format=format)
-
-    return resized_image
+        return resized_image
 
 
 class DragDropEntry(ttk.Entry):
@@ -222,11 +246,11 @@ class ImageResizerApp:
             self.output_folder_entry.delete(0, tk.END)
             self.output_folder_entry.insert(0, folder)
 
-    def get_output_filename(self, input_path, resize_mode, min_size=None, target_size_mb=None):
+    def get_output_filename(self, input_path, resize_mode, scaled_size=None, target_size_mb=None):
         """Generate output filename with appropriate suffix"""
         filename, ext = os.path.splitext(input_path)
         if resize_mode == "pixels":
-            suffix = f"_w{min_size}px"
+            suffix = f"_w{scaled_size}px"
         else:
             suffix = f"_{target_size_mb}MB"
         return f"{filename}{suffix}{ext}"
@@ -267,10 +291,10 @@ class ImageResizerApp:
         
         try:
             if resize_mode == "pixels":
-                min_size = int(self.pixel_size_entry.get())
+                scaled_size = int(self.pixel_size_entry.get())
                 target_size_mb = None
             else:
-                min_size = None
+                scaled_size = None
                 target_size_mb = float(self.file_size_entry.get())
                 
                 if target_size_mb <= 0:
@@ -293,9 +317,9 @@ class ImageResizerApp:
                 self.root.update()
                 
                 output_file = os.path.join(output_folder, 
-                    os.path.basename(self.get_output_filename(input_file, resize_mode, min_size, target_size_mb)))
+                    os.path.basename(self.get_output_filename(input_file, resize_mode, scaled_size, target_size_mb)))
                 
-                resize_image(input_file, output_file, min_size=min_size, target_size_mb=target_size_mb)
+                resize_image(input_file, output_file, scaled_size=scaled_size, target_size_mb=target_size_mb)
                 self.undo_manager.add_operation(input_file, output_file)
                 processed_count += 1
             except Exception as e:
