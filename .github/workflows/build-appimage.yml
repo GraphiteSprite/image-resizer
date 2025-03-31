@@ -1,19 +1,28 @@
 name: Build AppImage
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.x
+        python-version: '3.10'
 
     - name: Install FUSE
       run: |
@@ -22,7 +31,9 @@ jobs:
 
     - name: Install dependencies
       run: |
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pyinstaller
 
     - name: Create AppDir structure
       run: |
@@ -74,15 +85,20 @@ jobs:
     - name: Build AppImage
       run: |
         ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
+        mv *.AppImage ImageResizer.AppImage
 
     - name: Create Release
-      id: create_release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: |
-          Image_Resizer*.AppImage
+        files: ImageResizer.AppImage
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Image-Resizer-Linux
+        path: ImageResizer.AppImage
