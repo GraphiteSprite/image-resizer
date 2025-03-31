@@ -3,6 +3,8 @@ name: Build Windows Executable
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main ]
 
@@ -11,7 +13,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4  # Updated to latest version
+    - uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -21,7 +23,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller pillow
+        pip install -r requirements.txt
+        pip install pyinstaller
 
     - name: Build with PyInstaller
       run: |
@@ -29,10 +32,21 @@ jobs:
 
     - name: Package files
       run: |
-        Compress-Archive -Path dist\* -DestinationPath ImageResizer_Setup.zip -Force
+        Compress-Archive -Path "dist\Image Resizer.exe" -DestinationPath ImageResizer_Windows.zip -Force
 
-    - name: Upload executable
-      uses: actions/upload-artifact@v4  # Updated version
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: Image-Resizer-Executable
-        path: dist/*
+        files: |
+          ImageResizer_Windows.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Image-Resizer-Windows
+        path: "dist/Image Resizer.exe"
