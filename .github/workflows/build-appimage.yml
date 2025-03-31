@@ -8,10 +8,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # Updated to latest version
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4  # Updated to latest version
+      uses: actions/setup-python@v4
       with:
         python-version: 3.x
 
@@ -27,7 +27,7 @@ jobs:
     - name: Create AppDir structure
       run: |
         mkdir -p AppDir/usr/{bin,share/{applications,icons/hicolor/128x128/apps}}
-        
+
     - name: Check Required Files
       run: |
         if [ ! -f "resize_image_app_icon.ico" ]; then
@@ -38,7 +38,7 @@ jobs:
           echo "Error: image_resizer.py does not exist."
           exit 1
         fi
-        
+
     - name: Install ImageMagick and Convert Icon
       run: |
         sudo apt-get update
@@ -89,10 +89,10 @@ jobs:
     - name: Build AppImage
       run: |
         ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
-        mv Image_Resizer*.AppImage Image_Resizer-x86_64.AppImage  # Rename for consistency
+        mv Image_Resizer*.AppImage Image_Resizer-x86_64.AppImage
 
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
       with:
         name: image-resizer-appimage
-        path: Image_Resizer-x86_64.AppImage  # Corrected artifact path
+        path: Image_Resizer-x86_64.AppImage
