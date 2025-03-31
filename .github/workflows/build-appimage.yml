@@ -30,7 +30,6 @@ jobs:
 
     - name: Copy Icon to AppDir
       run: |
-        # Only copy to the apps directory, we'll create symlink later
         cp image-resizer-icon.png AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer-icon.png
 
     - name: Create desktop file
@@ -40,7 +39,7 @@ jobs:
         Name=Image Resizer
         Comment=Batch resize images with ease
         Exec=image-resizer
-        Icon=image-resizer
+        Icon=image-resizer-icon
         Terminal=false
         Type=Application
         Categories=Utility;
@@ -48,7 +47,6 @@ jobs:
 
     - name: PyInstaller build
       run: |
-        # Build with full path
         pyinstaller --onefile --name image-resizer ./image_resizer.py
         cp dist/image-resizer AppDir/usr/bin/
         chmod +x AppDir/usr/bin/image-resizer
@@ -64,7 +62,7 @@ jobs:
         EOF
         chmod +x AppDir/AppRun
 
-        # Create symlinks (removed duplicate icon copy)
+        # Create symlinks
         ln -sf usr/share/applications/image-resizer.desktop AppDir/image-resizer.desktop
         ln -sf usr/share/icons/hicolor/128x128/apps/image-resizer-icon.png AppDir/image-resizer-icon.png
 
