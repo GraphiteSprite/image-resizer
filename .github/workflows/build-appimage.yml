@@ -8,10 +8,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4  # Updated to latest version
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4  # Updated to latest version
       with:
         python-version: 3.10
 
@@ -24,24 +24,26 @@ jobs:
       run: |
         pip install -r requirements.txt
 
-    - name: Build AppImage
-      run: |
-        if [ ! -f "resize_image_app_icon.ico" ]; then
-          echo "File resize_image_app_icon.ico does not exist."
-          exit 1
-        fi
-        if [ ! -f "image_resizer.py" ]; then
-          echo "File image_resizer.py does not exist."
-          exit 1
-        fi
-        sudo apt-get update
-        sudo apt-get install -y imagemagick
-        ls -la
-        convert resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || echo "Icon conversion failed"name: Build AppImage
-
     - name: Create AppDir structure
       run: |
         mkdir -p AppDir/usr/{bin,share/{applications,icons/hicolor/128x128/apps}}
+        
+    - name: Check Required Files
+      run: |
+        if [ ! -f "resize_image_app_icon.ico" ]; then
+          echo "Error: resize_image_app_icon.ico does not exist."
+          exit 1
+        fi
+        if [ ! -f "image_resizer.py" ]; then
+          echo "Error: image_resizer.py does not exist."
+          exit 1
+        fi
+        
+    - name: Install ImageMagick and Convert Icon
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y imagemagick
+        convert resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || { echo "Icon conversion failed"; exit 1; }
 
     - name: Create desktop file
       run: |
@@ -55,17 +57,15 @@ jobs:
         Type=Application
         Categories=Graphics;Utility;
         EOF
-        
-    - name: PyInstaller build
+
+    - name: PyInstaller Build
       run: |
-        # Find the Python script
-        find . -name "image_resizer.py"
-        # Build with full path
-        pyinstaller --onefile --name image-resizer ./image_resizer.py
+        pyinstaller --onefile --name image-resizer image_resizer.py
         cp dist/image-resizer AppDir/usr/bin/
         chmod +x AppDir/usr/bin/image-resizer
 
-        # Create AppRun file
+    - name: Create AppRun file
+      run: |
         cat > AppDir/AppRun << 'EOF'
         #!/bin/bash
         SELF=$(readlink -f "$0")
@@ -76,7 +76,8 @@ jobs:
         EOF
         chmod +x AppDir/AppRun
 
-        # Create symlinks
+    - name: Create Symlinks
+      run: |
         ln -s usr/share/applications/image-resizer.desktop AppDir/image-resizer.desktop
         ln -s usr/share/icons/hicolor/128x128/apps/image-resizer.png AppDir/image-resizer.png
 
@@ -88,9 +89,10 @@ jobs:
     - name: Build AppImage
       run: |
         ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
+        mv Image_Resizer*.AppImage Image_Resizer-x86_64.AppImage  # Rename for consistency
 
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
       with:
         name: image-resizer-appimage
-        path: Image_Resizer*.AppImage
+        path: Image_Resizer-x86_64.AppImage  # Corrected artifact path
