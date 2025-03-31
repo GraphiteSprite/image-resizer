@@ -1,9 +1,10 @@
 import os
-from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from tkinterdnd2 import DND_FILES, TkinterDnD  # Import tkinterdnd2
 from PIL import Image, ImageTk
 import io
+
 
 def resize_image(input_path, output_path, min_size=None, target_size_mb=None):
     """Resize an image while maintaining aspect ratio. Optionally compress to a target file size."""
@@ -83,33 +84,34 @@ def resize_image(input_path, output_path, min_size=None, target_size_mb=None):
     return resized_image
 
 
-class DragDropEntry(tk.Entry):
+class DragDropEntry(ttk.Entry):
     """Custom Entry widget that supports drag and drop."""
     def __init__(self, master=None, **kwargs):
         super().__init__(master, **kwargs)
-        self.bind('<Drop>', self.drop)
         
+        # Enable drag and drop
+        self.drop_target_register(DND_FILES)
+        self.dnd_bind('<<Drop>>', self.drop)
+
     def drop(self, event):
-        # Get the dropped data (file path)
+        """Handle dropped files."""
         data = event.data
         
-        # Clean up the path string - remove {} and quotes if present
+        # Remove unnecessary curly braces from file paths
         if data.startswith('{') and data.endswith('}'):
             data = data[1:-1]
-        if data.startswith('"') and data.endswith('"'):
-            data = data[1:-1]
-            
+
         # Update the entry with the dropped path
         self.delete(0, tk.END)
-        self.insert(0, data)
-        return "break"  # Prevent default handling
+        self.insert(0, data.strip())
 
 
+# Ensure the main window uses TkinterDnD for drag-and-drop support
 class ImageResizerApp:
     def __init__(self, root):
-        self.root = root
-        self.root.title("Batch Image Resizer")
-
+        self.root = root  # Use the passed root window
+        
+        # Create the GUI elements
         # Input & Output folder selection
         tk.Label(root, text="Input Folder:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         self.input_folder_entry = DragDropEntry(root, width=50)
@@ -281,6 +283,7 @@ class ImageResizerApp:
             messagebox.showinfo("Success", "All images have been resized!")
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = TkinterDnD.Tk()  # Use TkinterDnD.Tk() instead of tk.Tk()
+    root.title("Batch Image Resizer")
     app = ImageResizerApp(root)
     root.mainloop()
