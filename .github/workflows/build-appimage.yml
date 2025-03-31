@@ -10,29 +10,40 @@ on:
 jobs:
   build-appimage:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pillow pyinstaller
-    
+
     - name: List directory contents
       run: |
         pwd
         ls -la
-    
+
+    - name: Verify files
+      run: |
+        if [ ! -f "resize_image_app_icon.ico" ]; then
+          echo "File resize_image_app_icon.ico does not exist."
+          exit 1
+        fi
+        if [ ! -f "image_resizer.py" ]; then
+          echo "File image_resizer.py does not exist."
+          exit 1
+        fi
+
     - name: Create AppDir structure
       run: |
         mkdir -p AppDir/usr/{bin,share/{applications,icons/hicolor/128x128/apps}}
-    
+
     - name: Create desktop file
       run: |
         cat > AppDir/usr/share/applications/image-resizer.desktop << 'EOF'
@@ -45,24 +56,24 @@ jobs:
         Type=Application
         Categories=Graphics;Utility;
         EOF
-    
+
     - name: Convert and copy icon
       run: |
         sudo apt-get update
         sudo apt-get install -y imagemagick
         # Add debug output
-        ls -la image-resizer/
-        convert image-resizer/resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || echo "Icon conversion failed"
-    
+        ls -la
+        convert resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || echo "Icon conversion failed"
+
     - name: PyInstaller build
       run: |
         # Find the Python script
         find . -name "image_resizer.py"
         # Build with full path
-        pyinstaller --onefile --name image-resizer ./image-resizer/image_resizer.py
+        pyinstaller --onefile --name image-resizer ./image_resizer.py
         cp dist/image-resizer AppDir/usr/bin/
         chmod +x AppDir/usr/bin/image-resizer
-        
+
         # Create AppRun file
         cat > AppDir/AppRun << 'EOF'
         #!/bin/bash
@@ -73,20 +84,20 @@ jobs:
         "${HERE}/usr/bin/image-resizer" "$@"
         EOF
         chmod +x AppDir/AppRun
-        
+
         # Create symlinks
         ln -s usr/share/applications/image-resizer.desktop AppDir/image-resizer.desktop
         ln -s usr/share/icons/hicolor/128x128/apps/image-resizer.png AppDir/image-resizer.png
-    
+
     - name: Download AppImageTool
       run: |
         wget -O appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool-x86_64.AppImage
-    
+
     - name: Build AppImage
       run: |
         ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
-    
+
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
       with:
