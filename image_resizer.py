@@ -10,12 +10,16 @@ import io
 def resize_image(input_path, output_path, scaled_size=None, target_size_mb=None):
     """Resize an image while maintaining aspect ratio. Optionally compress to a target file size."""
     if target_size_mb is not None:
-        # Check current file size
-        current_size_mb = os.path.getsize(input_path) / (1024 * 1024)
-        if current_size_mb <= target_size_mb:
-            # If file is already smaller than target, copy it directly
+        # Convert MB to bytes using base-2 (1 MB = 1048576 bytes)
+        target_size_bytes = target_size_mb * 1024 * 1024
+        # Add a 2% safety margin to account for filesystem variations
+        target_size_bytes = target_size_bytes * 0.98
+        
+        # Check current file size in bytes
+        current_size_bytes = os.path.getsize(input_path)
+        if current_size_bytes <= target_size_bytes:
             shutil.copy2(input_path, output_path)
-            print(f"Skipped resizing: file already under target size ({current_size_mb:.2f}MB)")
+            print(f"Skipped resizing: file already under target size ({current_size_bytes / (1024 * 1024):.2f}MB)")
             return None
 
         image = Image.open(input_path)
@@ -52,12 +56,14 @@ def resize_image(input_path, output_path, scaled_size=None, target_size_mb=None)
             else:
                 resized.save(temp_output, format=format)
             
-            size_mb = len(temp_output.getvalue()) / (1024 * 1024)
+            # Calculate size in bytes
+            size_bytes = len(temp_output.getvalue())
+            size_mb = size_bytes / (1024 * 1024)
             
-            if size_mb <= target_size_mb:
+            if size_bytes <= target_size_bytes:
                 # This size works, try a larger scale
                 left = scale
-                if size_mb > best_size_mb:
+                if size_bytes > best_size_mb * (1024 * 1024):  # Convert best_size_mb to bytes for comparison
                     best_scale = scale
                     best_size_mb = size_mb
             else:
@@ -65,7 +71,7 @@ def resize_image(input_path, output_path, scaled_size=None, target_size_mb=None)
                 right = scale
             
             attempts += 1
-            print(f"Attempt {attempts}: Scale={scale:.2f}, Size={size_mb:.2f}MB")
+            print(f"Attempt {attempts}: Scale={scale:.2f}, Size={size_mb:.2f}MB (Target: {target_size_mb}MB)")
 
         if best_scale is None:
             raise ValueError("Could not find suitable size within constraints")
@@ -212,14 +218,21 @@ class ImageResizerApp:
         self.progress = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
         self.progress.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky="ew")
 
-        # Process Button
-        self.process_button = tk.Button(root, text="Resize Images", command=self.process_images, bg="green", fg="white")
-        self.process_button.grid(row=8, column=0, columnspan=3, pady=10)
+        # Button frame for aligned buttons
+        button_frame = tk.Frame(root)
+        button_frame.grid(row=8, column=0, columnspan=3, pady=10, sticky="ew")
+        
+        # Process Button (left-aligned in frame)
+        self.process_button = tk.Button(button_frame, text="Resize Images", 
+                                      command=self.process_images, 
+                                      bg="green", fg="white")
+        self.process_button.pack(side=tk.LEFT, padx=5)
 
-        # Undo Button
-        self.undo_button = tk.Button(root, text="Undo Last Batch", command=self.undo_last_batch, 
+        # Undo Button (right-aligned in frame)
+        self.undo_button = tk.Button(button_frame, text="Undo Last Batch", 
+                                   command=self.undo_last_batch, 
                                    state="disabled", bg="orange", fg="white")
-        self.undo_button.grid(row=8, column=3, pady=10, padx=5)
+        self.undo_button.pack(side=tk.RIGHT, padx=5)
 
         # Status label
         self.status_label = tk.Label(root, text="Ready", font=("Arial", 9))
