@@ -1,4 +1,5 @@
 import os
+import shutil  # Add this import at the top
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinterdnd2 import DND_FILES, TkinterDnD  # Import tkinterdnd2
@@ -106,12 +107,36 @@ class DragDropEntry(ttk.Entry):
         self.insert(0, data.strip())
 
 
+class UndoManager:
+    """Manage undo operations for batch processing."""
+    def __init__(self):
+        self.last_operations = []
+
+    def add_operation(self, input_file, output_file):
+        """Add an operation to the undo stack."""
+        self.last_operations.append((input_file, output_file))
+
+    def undo_last_batch(self):
+        """Undo the last batch of operations."""
+        if not self.last_operations:
+            return False
+        
+        for _, output_file in self.last_operations:
+            try:
+                os.remove(output_file)
+            except Exception as e:
+                print(f"Error removing file {output_file}: {str(e)}")
+        
+        self.last_operations.clear()
+        return True
+
+
 # Ensure the main window uses TkinterDnD for drag-and-drop support
 class ImageResizerApp:
     def __init__(self, root):
-        self.root = root  # Use the passed root window
+        self.root = root
+        self.undo_manager = UndoManager()
         
-        # Create the GUI elements
         # Input & Output folder selection
         tk.Label(root, text="Input Folder:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         self.input_folder_entry = DragDropEntry(root, width=50)
@@ -167,6 +192,11 @@ class ImageResizerApp:
         self.process_button = tk.Button(root, text="Resize Images", command=self.process_images, bg="green", fg="white")
         self.process_button.grid(row=8, column=0, columnspan=3, pady=10)
 
+        # Undo Button
+        self.undo_button = tk.Button(root, text="Undo Last Batch", command=self.undo_last_batch, 
+                                   state="disabled", bg="orange", fg="white")
+        self.undo_button.grid(row=8, column=3, pady=10, padx=5)
+
         # Status label
         self.status_label = tk.Label(root, text="Ready", font=("Arial", 9))
         self.status_label.grid(row=9, column=0, columnspan=3, padx=5, pady=5)
@@ -192,16 +222,41 @@ class ImageResizerApp:
             self.output_folder_entry.delete(0, tk.END)
             self.output_folder_entry.insert(0, folder)
 
+    def get_output_filename(self, input_path, resize_mode, min_size=None, target_size_mb=None):
+        """Generate output filename with appropriate suffix"""
+        filename, ext = os.path.splitext(input_path)
+        if resize_mode == "pixels":
+            suffix = f"_w{min_size}px"
+        else:
+            suffix = f"_{target_size_mb}MB"
+        return f"{filename}{suffix}{ext}"
+
     def process_images(self):
-        input_folder = self.input_folder_entry.get().strip()
+        input_path = self.input_folder_entry.get().strip()
         output_folder = self.output_folder_entry.get().strip()
         
-        if not input_folder or not os.path.isdir(input_folder):
-            messagebox.showerror("Error", "Invalid input folder")
-            return
+        # Clear previous undo operations
+        self.undo_manager.last_operations.clear()
         
-        if not output_folder:
-            messagebox.showerror("Error", "Please specify an output folder")
+        # Handle multiple input files
+        input_files = []
+        if ',' in input_path:  # Multiple files
+            paths = [p.strip() for p in input_path.split(',')]
+            for path in paths:
+                if os.path.isfile(path):
+                    input_files.append(path)
+        elif os.path.isfile(input_path):  # Single file
+            input_files.append(input_path)
+        elif os.path.isdir(input_path):  # Directory
+            valid_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", 
+                              ".tif", ".gif", ".webp", ".heic", ".heif", ".avif"}
+            for file in os.listdir(input_path):
+                file_path = os.path.join(input_path, file)
+                if os.path.isfile(file_path) and os.path.splitext(file)[1].lower() in valid_extensions:
+                    input_files.append(file_path)
+        
+        if not input_files:
+            messagebox.showerror("Error", "No valid input files found")
             return
             
         # Create output folder if it doesn't exist
@@ -216,10 +271,8 @@ class ImageResizerApp:
                 target_size_mb = None
             else:
                 min_size = None
-                # Fix: Directly convert the entry to float without any division
                 target_size_mb = float(self.file_size_entry.get())
                 
-                # Validate file size is reasonable
                 if target_size_mb <= 0:
                     messagebox.showerror("Error", "Target size must be greater than 0 MB")
                     return
@@ -227,60 +280,53 @@ class ImageResizerApp:
             messagebox.showerror("Error", "Please enter valid numeric values")
             return
 
-        # Expanded list of valid extensions
-        valid_extensions = {
-            ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", 
-            ".webp", ".heic", ".heif", ".avif"
-        }
-        
-        # Collect image files
-        image_files = []
-        for file in os.listdir(input_folder):
-            file_path = os.path.join(input_folder, file)
-            if os.path.isfile(file_path) and os.path.splitext(file)[1].lower() in valid_extensions:
-                image_files.append(file_path)
-
-        if not image_files:
-            messagebox.showerror("Error", "No supported image files found in the selected folder")
-            return
-
-        # Disable the process button and reset progress bar
-        self.process_button.config(state="disabled")
-        self.progress["maximum"] = len(image_files)
-        self.progress["value"] = 0
-        self.root.update()
-
         # Process images
+        self.process_button.config(state="disabled")
+        self.progress["maximum"] = len(input_files)
+        self.progress["value"] = 0
         processed_count = 0
         failed_count = 0
         
-        for image_file in image_files:
+        for input_file in input_files:
             try:
-                self.status_label.config(text=f"Processing: {os.path.basename(image_file)}")
+                self.status_label.config(text=f"Processing: {os.path.basename(input_file)}")
                 self.root.update()
                 
-                output_file = os.path.join(output_folder, os.path.basename(image_file))
-                resize_image(image_file, output_file, min_size=min_size, target_size_mb=target_size_mb)
+                output_file = os.path.join(output_folder, 
+                    os.path.basename(self.get_output_filename(input_file, resize_mode, min_size, target_size_mb)))
+                
+                resize_image(input_file, output_file, min_size=min_size, target_size_mb=target_size_mb)
+                self.undo_manager.add_operation(input_file, output_file)
                 processed_count += 1
             except Exception as e:
-                print(f"Error processing {image_file}: {str(e)}")
+                print(f"Error processing {input_file}: {str(e)}")
                 failed_count += 1
             
-            # Update progress
             self.progress["value"] = processed_count + failed_count
             self.root.update()
 
-        # Re-enable the process button
+        # Re-enable buttons
         self.process_button.config(state="normal")
+        self.undo_button.config(state="normal")
         
         # Show completion message
         if failed_count > 0:
             self.status_label.config(text=f"Completed: {processed_count} processed, {failed_count} failed")
             messagebox.showinfo("Processing Complete", 
-                               f"{processed_count} images were successfully resized.\n{failed_count} images failed processing.")
+                              f"{processed_count} images were successfully resized.\n{failed_count} images failed processing.")
         else:
             self.status_label.config(text=f"Completed: {processed_count} images processed")
             messagebox.showinfo("Success", "All images have been resized!")
+
+    def undo_last_batch(self):
+        """Undo the last batch of operations"""
+        if self.undo_manager.undo_last_batch():
+            self.status_label.config(text="Last batch operation undone")
+            self.undo_button.config(state="disabled")
+            messagebox.showinfo("Undo Complete", "The last batch operation has been undone")
+        else:
+            messagebox.showinfo("Nothing to Undo", "No operations to undo")
+
 
 if __name__ == "__main__":
     root = TkinterDnD.Tk()  # Use TkinterDnD.Tk() instead of tk.Tk()
