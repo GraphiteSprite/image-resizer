@@ -8,12 +8,12 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v2
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v2
       with:
-        python-version: 3.x
+        python-version: 3.10
 
     - name: Install FUSE
       run: |
@@ -28,22 +28,10 @@ jobs:
       run: |
         mkdir -p AppDir/usr/{bin,share/{applications,icons/hicolor/128x128/apps}}
 
-    - name: Check Required Files
+    - name: Copy Icon to AppDir
       run: |
-        if [ ! -f "resize_image_app_icon.ico" ]; then
-          echo "Error: resize_image_app_icon.ico does not exist."
-          exit 1
-        fi
-        if [ ! -f "image_resizer.py" ]; then
-          echo "Error: image_resizer.py does not exist."
-          exit 1
-        fi
-
-    - name: Install ImageMagick and Convert Icon
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y imagemagick
-        convert resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || { echo "Icon conversion failed"; exit 1; }
+        cp image-resizer-icon.png AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer-icon.png
+        cp image-resizer-icon.png AppDir/image-resizer-icon.png  # Copy to AppDir root as well
 
     - name: Create desktop file
       run: |
@@ -55,17 +43,17 @@ jobs:
         Icon=image-resizer
         Terminal=false
         Type=Application
-        Categories=Graphics;Utility;
+        Categories=Utility;
         EOF
 
-    - name: PyInstaller Build
+    - name: PyInstaller build
       run: |
-        pyinstaller --onefile --name image-resizer image_resizer.py
+        # Build with full path
+        pyinstaller --onefile --name image-resizer ./image_resizer.py
         cp dist/image-resizer AppDir/usr/bin/
         chmod +x AppDir/usr/bin/image-resizer
 
-    - name: Create AppRun file
-      run: |
+        # Create AppRun file
         cat > AppDir/AppRun << 'EOF'
         #!/bin/bash
         SELF=$(readlink -f "$0")
@@ -76,10 +64,9 @@ jobs:
         EOF
         chmod +x AppDir/AppRun
 
-    - name: Create Symlinks
-      run: |
+        # Create symlinks
         ln -s usr/share/applications/image-resizer.desktop AppDir/image-resizer.desktop
-        ln -s usr/share/icons/hicolor/128x128/apps/image-resizer.png AppDir/image-resizer.png
+        ln -s usr/share/icons/hicolor/128x128/apps/image-resizer-icon.png AppDir/image-resizer-icon.png
 
     - name: Download AppImageTool
       run: |
@@ -89,10 +76,9 @@ jobs:
     - name: Build AppImage
       run: |
         ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
-        mv Image_Resizer*.AppImage Image_Resizer-x86_64.AppImage
 
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
       with:
         name: image-resizer-appimage
-        path: Image_Resizer-x86_64.AppImage
+        path: Image_Resizer*.AppImage
