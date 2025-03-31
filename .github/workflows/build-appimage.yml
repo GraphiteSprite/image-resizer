@@ -1,35 +1,30 @@
 name: Build AppImage
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push, pull_request]
 
 jobs:
-  build-appimage:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v2
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v2
       with:
-        python-version: '3.10'
+        python-version: 3.10
+
+    - name: Install FUSE
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y fuse
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install pillow pyinstaller
+        pip install -r requirements.txt
 
-    - name: List directory contents
-      run: |
-        pwd
-        ls -la
-
-    - name: Verify files
+    - name: Build AppImage
       run: |
         if [ ! -f "resize_image_app_icon.ico" ]; then
           echo "File resize_image_app_icon.ico does not exist."
@@ -39,6 +34,10 @@ jobs:
           echo "File image_resizer.py does not exist."
           exit 1
         fi
+        sudo apt-get update
+        sudo apt-get install -y imagemagick
+        ls -la
+        convert resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || echo "Icon conversion failed"name: Build AppImage
 
     - name: Create AppDir structure
       run: |
@@ -56,15 +55,7 @@ jobs:
         Type=Application
         Categories=Graphics;Utility;
         EOF
-
-    - name: Convert and copy icon
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y imagemagick
-        # Add debug output
-        ls -la
-        convert resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || echo "Icon conversion failed"
-
+        
     - name: PyInstaller build
       run: |
         # Find the Python script
