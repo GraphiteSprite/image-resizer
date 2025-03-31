@@ -24,6 +24,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install pillow pyinstaller
     
+    - name: List directory contents
+      run: |
+        pwd
+        ls -la
+    
     - name: Create AppDir structure
       run: |
         mkdir -p AppDir/usr/{bin,share/{applications,icons/hicolor/128x128/apps}}
@@ -43,14 +48,18 @@ jobs:
     
     - name: Convert and copy icon
       run: |
-        # Install ImageMagick if not already installed
+        sudo apt-get update
         sudo apt-get install -y imagemagick
-        # Convert ICO to PNG and copy to the right location
-        convert image-resizer/resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png    
+        # Add debug output
+        ls -la image-resizer/
+        convert image-resizer/resize_image_app_icon.ico AppDir/usr/share/icons/hicolor/128x128/apps/image-resizer.png || echo "Icon conversion failed"
     
     - name: PyInstaller build
       run: |
-        pyinstaller --onefile --name image-resizer image_resizer.py
+        # Find the Python script
+        find . -name "image_resizer.py"
+        # Build with full path
+        pyinstaller --onefile --name image-resizer ./image-resizer/image_resizer.py
         cp dist/image-resizer AppDir/usr/bin/
         chmod +x AppDir/usr/bin/image-resizer
         
@@ -76,7 +85,7 @@ jobs:
     
     - name: Build AppImage
       run: |
-        ./appimagetool-x86_64.AppImage AppDir
+        ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
     
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
